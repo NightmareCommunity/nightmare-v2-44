@@ -2,6 +2,9 @@
 
 A secure, modular Discord.js v14 bot foundation with dark/nightmare branding, slash commands, SQLite persistence, centralized embeds, cooldowns, permission gates, and resilient interaction error handling.
 
+## Important token security
+The token previously pasted into chat is exposed and must be revoked immediately in the Discord Developer Portal. Do not put it in GitHub or send it in chat. Generate a replacement under **Developer Portal → Application → Bot → Reset Token**, then set the replacement only in your hosting provider's environment variables as `DISCORD_TOKEN`.
+
 ## Implemented in this release
 - `/ping`, `/help`, `/serverinfo`, `/userinfo`, `/avatar`
 - `/config` (administrator-only settings inspection)
@@ -30,29 +33,29 @@ npm start
 Keep `.env` private and never commit it. `DATABASE_PATH` defaults to `./data/nightmare.sqlite`; create backups of this file in production.
 
 ## Developer Portal setup
-1. Create an application at https://discord.com/developers/applications.
+1. Create/open the application at https://discord.com/developers/applications.
 2. Copy the Application ID to `CLIENT_ID`.
-3. Reset/copy the bot token into `DISCORD_TOKEN`.
-4. Enable **Server Members Intent**, **Message Content Intent**, and **Presence Intent only if later needed**.
-5. Use OAuth2 URL Generator with `bot` and `applications.commands`; grant only permissions required by enabled modules.
+3. Under **Bot**, reset the token and add the replacement only to the host environment as `DISCORD_TOKEN`.
+4. Enable **Server Members Intent** and **Message Content Intent**. Presence is not requested.
+5. Use OAuth2 URL Generator with scopes `bot` and `applications.commands`; grant only permissions required by enabled modules.
 
 ## Environment variables
 | Variable | Required | Purpose |
 |---|---:|---|
-| `DISCORD_TOKEN` | yes | Bot secret |
+| `DISCORD_TOKEN` | yes | Bot secret; never commit it |
 | `CLIENT_ID` | yes | Application ID |
 | `OWNER_ID` | yes | Reserved for future owner-only modules |
 | `DATABASE_PATH` | no | SQLite file location |
 | `NODE_ENV` | no | Runtime mode |
 
 ## Deployment
-Any free Node.js host that supports long-running processes can run this bot, subject to its sleep/runtime limits. Examples include a free-tier VM or a self-hosted machine. Discord bots need a continuously running process; hosts that sleep inactive services may disconnect the bot. Do not claim unlimited uptime from a free tier.
+Any free Node.js host that supports long-running processes can run this bot, subject to its sleep/runtime limits. Discord bots need a continuously running process; hosts that sleep inactive services may disconnect the bot. Do not claim unlimited uptime from a free tier.
 
-Run `npm run register` after command changes, then `npm start`. For production, use the host's process manager and persistent disk for SQLite. If the host has ephemeral storage, use a persistent volume or the warning database will be lost on restart.
+Run `npm run register` after command changes, then `npm start`. Global commands can take up to an hour to appear. If the host has ephemeral storage, use a persistent volume or the warning database will be lost on restart.
 
 ## Security and operations
 - Never expose `DISCORD_TOKEN` or commit `.env`.
-- The supplied credential in chat should be treated as compromised: revoke/rotate it in the Discord Developer Portal before using this project. It was not written to project files.
+- Rotate any token pasted into chat or source control.
 - Use least-privilege bot permissions.
 - Keep the bot role below roles it must not moderate.
 - Inspect logs and back up SQLite.
@@ -70,5 +73,6 @@ src/
   utils/embed.js        # consistent NIGHTMARE embeds
   utils/logger.js       # centralized logger
 .env.example
+.gitignore
 README.md
 ```
