@@ -1,78 +1,34 @@
 # NIGHTMARE V2.44
 
-A secure, modular Discord.js v14 bot foundation with dark/nightmare branding, slash commands, SQLite persistence, centralized embeds, cooldowns, permission gates, and resilient interaction error handling.
+A modular Discord.js v14 moderation and community bot with SQLite persistence, centralized embeds, permission gates, role hierarchy checks, cooldown-ready event handling, and environment-only secrets.
 
-## Important token security
-The token previously pasted into chat is exposed and must be revoked immediately in the Discord Developer Portal. Do not put it in GitHub or send it in chat. Generate a replacement under **Developer Portal → Application → Bot → Reset Token**, then set the replacement only in your hosting provider's environment variables as `DISCORD_TOKEN`.
+## Implemented
+- Core: `/ping`, `/help`, `/serverinfo`, `/userinfo`, `/avatar`
+- Moderation: `/ban`, `/unban`, `/kick`, `/timeout`, `/untimeout`, `/softban`, `/clear`, `/slowmode`, `/lock`, `/unlock`, `/nick`, `/role`, `/removerole`, `/warn`, `/warnings`
+- Persistent moderation cases, warnings, guild settings, tickets, and giveaways (including entries and winner state)
+- Typed admin-gated `/config view`, `/config welcome`, `/config goodbye`, `/config logs`, `/config moderation`, `/config automod`, `/config tickets`, `/config verification`, and `/config autorole`
+- Ticket panel via `/tickets setup`, button-based ticket creation, and `/tickets close|claim|add|remove`
+- Welcome, goodbye, autorole, automod, and basic logging seams through Discord events
+- Owner-only `/owner status|servers|reload|broadcast|shutdown` gate using `OWNER_ID`, with safe broadcast/shutdown semantics
+- Global interaction error handling and no secrets in source
 
-## Implemented in this release
-- `/ping`, `/help`, `/serverinfo`, `/userinfo`, `/avatar`
-- `/config` (administrator-only settings inspection)
-- `/warn`, `/warnings` with persistent SQLite warning history
-- Automatic database initialization
-- Global slash-command registration
-- Modular command/event/database/utils structure
-- Environment-based secrets; no token is stored in source
+## Current limitations
+Giveaways persist entries and use a safe 30-second expiry worker; the worker only ends persisted giveaways and never shuts down the process. `/owner broadcast` intentionally requires a separate controlled confirmation and sends nothing by itself; `/owner shutdown` is disabled for safety. Configure channels and roles through the typed `/config` subcommands, and ensure the bot role is high enough. The bot does not invent defaults or external integrations.
 
-The requested moderation, automod, tickets, giveaways, welcome, verification, logging, autorole, role menus, statistics, and owner command suites are **not claimed as implemented in this release**. Their database/module seams can be added without replacing the core architecture.
+## Requirements and setup
+Node.js 20+, a Discord application, and a bot token. Copy `.env.example` to `.env`, provide `DISCORD_TOKEN`, `CLIENT_ID`, and `OWNER_ID`, then run:
 
-## Requirements
-- Node.js 20+
-- A Discord application and bot token
-- SQLite is local and free; no paid APIs or external services are required.
-
-## Install
 ```bash
-cp .env.example .env
 npm install
 npm run check
 npm run register
 npm start
 ```
 
-Keep `.env` private and never commit it. `DATABASE_PATH` defaults to `./data/nightmare.sqlite`; create backups of this file in production.
+Enable Server Members and Message Content intents. Keep `.env` and the SQLite database private. `DATABASE_PATH` defaults to `./data/nightmare.sqlite`.
 
-## Developer Portal setup
-1. Create/open the application at https://discord.com/developers/applications.
-2. Copy the Application ID to `CLIENT_ID`.
-3. Under **Bot**, reset the token and add the replacement only to the host environment as `DISCORD_TOKEN`.
-4. Enable **Server Members Intent** and **Message Content Intent**. Presence is not requested.
-5. Use OAuth2 URL Generator with scopes `bot` and `applications.commands`; grant only permissions required by enabled modules.
-
-## Environment variables
-| Variable | Required | Purpose |
-|---|---:|---|
-| `DISCORD_TOKEN` | yes | Bot secret; never commit it |
-| `CLIENT_ID` | yes | Application ID |
-| `OWNER_ID` | yes | Reserved for future owner-only modules |
-| `DATABASE_PATH` | no | SQLite file location |
-| `NODE_ENV` | no | Runtime mode |
-
-## Deployment
-Any free Node.js host that supports long-running processes can run this bot, subject to its sleep/runtime limits. Discord bots need a continuously running process; hosts that sleep inactive services may disconnect the bot. Do not claim unlimited uptime from a free tier.
-
-Run `npm run register` after command changes, then `npm start`. Global commands can take up to an hour to appear. If the host has ephemeral storage, use a persistent volume or the warning database will be lost on restart.
-
-## Security and operations
-- Never expose `DISCORD_TOKEN` or commit `.env`.
-- Rotate any token pasted into chat or source control.
-- Use least-privilege bot permissions.
-- Keep the bot role below roles it must not moderate.
-- Inspect logs and back up SQLite.
-- Command errors are isolated and returned as ephemeral messages; process-level handlers log unexpected failures.
+## Security
+The token is never stored in source. Rotate any token exposed in chat or source control. Discord permission gates and role hierarchy checks protect moderation operations; the bot cannot manage roles above its highest role. Grant only required OAuth2 permissions.
 
 ## Structure
-```text
-src/
-  index.js              # client bootstrap and intents
-  deploy-commands.js    # slash command registration
-  config.js             # branding and cooldown policy
-  commands/index.js     # command modules
-  events/index.js       # ready, interactions, API errors
-  database/index.js     # SQLite schema and settings helpers
-  utils/embed.js        # consistent NIGHTMARE embeds
-  utils/logger.js       # centralized logger
-.env.example
-.gitignore
-README.md
-```
+`src/index.js` bootstraps the client; `src/commands/index.js` contains slash command definitions; `src/events/index.js` handles commands, buttons, and event seams; `src/database/index.js` owns SQLite schema/helpers; `src/utils/` contains embeds and logging.
