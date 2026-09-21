@@ -1,0 +1,10 @@
+{
+  "name": "nightmare-v2-44",
+  "version": "1.0.0",
+  "description": "NIGHTMARE V2.44 production Discord bot",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {"build":"node scripts/build-bot.mjs","start":"node src/index.js","register":"node src/deploy-commands.js","check":"node --check src/index.js && node --check src/commands/index.js && node --check src/events/index.js && node --check src/database/index.js && node --check src/deploy-commands.js"},
+  "engines": {"node": ">=20.0.0"},
+  "dependencies": {"better-sqlite3":"^11.7.0","discord.js":"^14.16.3","dotenv":"^16.4.7"}
+}
