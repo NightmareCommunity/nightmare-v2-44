@@ -1,34 +1,85 @@
 # NIGHTMARE V2.44
 
-A modular Discord.js v14 moderation and community bot with SQLite persistence, centralized embeds, permission gates, role hierarchy checks, cooldown-ready event handling, and environment-only secrets.
+Production Discord bot (discord.js v14 + SQLite) focused on four things: **seller vouches**, **ticket panels with modal forms**, **saved crypto/UPI payout addresses**, and **full server moderation**.
 
-## Implemented
-- Core: `/ping`, `/help`, `/serverinfo`, `/userinfo`, `/avatar`
-- Moderation: `/ban`, `/unban`, `/kick`, `/timeout`, `/untimeout`, `/softban`, `/clear`, `/slowmode`, `/lock`, `/unlock`, `/nick`, `/role`, `/removerole`, `/warn`, `/warnings`
-- Persistent moderation cases, warnings, guild settings, tickets, and giveaways (including entries and winner state)
-- Typed admin-gated `/config view`, `/config welcome`, `/config goodbye`, `/config logs`, `/config moderation`, `/config automod`, `/config tickets`, `/config verification`, and `/config autorole`
-- Ticket panel via `/tickets setup`, button-based ticket creation, and `/tickets close|claim|add|remove`
-- Welcome, goodbye, autorole, automod, and basic logging seams through Discord events
-- Owner-only `/owner status|servers|reload|broadcast|shutdown` gate using `OWNER_ID`, with safe broadcast/shutdown semantics
-- Global interaction error handling and no secrets in source
+## Features
 
-## Current limitations
-Giveaways persist entries and use a safe 30-second expiry worker; the worker only ends persisted giveaways and never shuts down the process. `/owner broadcast` intentionally requires a separate controlled confirmation and sends nothing by itself; `/owner shutdown` is disabled for safety. Configure channels and roles through the typed `/config` subcommands, and ensure the bot role is high enough. The bot does not invent defaults or external integrations.
+### ⭐ Vouch / rep system (seller reputation)
+- Type `+rep @user description` (or `vouch @user description`) in any channel — the bot reacts ⭐, confirms with the seller's live vouch count, and stores it permanently
+- Self-vouching blocked; 2-minute duplicate window per author→target pair
+- `/vouch view @user` — paged vouch history with IDs
+- `/vouch me` — your vouches plus total + this-month counters
+- `/vouch top` — server leaderboard
+- `/vouch latest` — newest vouches server-wide
+- `/vouch remove <id>` — authors, targets, or moderators can remove (audited)
+- `/config vouchchannel` — mirror every new vouch into a dedicated channel
 
-## Requirements and setup
-Node.js 20+, a Discord application, and a bot token. Copy `.env.example` to `.env`, provide `DISCORD_TOKEN`, `CLIENT_ID`, and `OWNER_ID`, then run:
+### 🎫 Ticket panels with modal forms
+- `/ticketpanel create` — posts a panel with a category dropdown
+- `/ticketcategory add` — per category: staff roles (up to 3), destination channel category, ticket-name format (`{username}`), open-ticket limit per user
+- `/ticketfield add` — up to 5 modal questions per category (Discord limit): short text or paragraph, required/optional, placeholder, exact-match choice validation (e.g. `LTC, UPI` dropdown-style answers)
+- Opening a ticket runs the form modal → a private channel is created (owner + category staff roles only) with the responses posted as a formatted embed
+- In-ticket controls (buttons): **Claim**, **Priority** (low/normal/high/critical), **Close** (with reason modal) — plus `/ticket reopen|unclaim|add|remove|transcript|delete`
+- `/ticket blacklist|unblacklist` — block abusive users from opening tickets
+- Auto-close worker: warns after N idle hours (default 24), closes after N more (default 48) — configurable via `/config autoclose`
+- HTML transcript generated on close (paginated message history), DM'd to the owner and served at `/transcripts/ticket-<id>.html`
+
+### 💳 Payout address vault (private per user)
+- `/payout save type:<ltc|upi|bank> address:<...>` — each user's methods are visible only to them (ephemeral replies)
+- **LTC addresses are fully checksum-verified**: bech32 (`ltc1…`) via a BIP-173 implementation validated against official test vectors, and legacy `L…`/`M…` via real base58check double-SHA256 validation
+- **UPI IDs** validated as `name@bank` VPAs (normalized to lowercase)
+- Private-key-shaped input is detected and rejected with an explicit warning — the bot never accepts seed phrases or private keys
+- `/payout list|remove|default` — manage methods, one marked default
+- `/payout confirm` — two-step confirmation (token valid 10 minutes) to protect accounts; unconfirmed methods are flagged ⚠️
+- Every save/change is written to the audit log (`moderation_logs`)
+
+### 🛡️ Full moderation
+- `/ban /unban /softban /kick` with reasons + optional evidence links, role-hierarchy guarded
+- `/timeout /untimeout` (up to 28 days), `/warn` (DMs the user), `/warnings`
+- `/history @user` — numbered case history; `/case view|reason` — view or edit any case
+- `/clear` (bulk delete), `/slowmode`, `/lock /unlock`
+- `/nick`, `/role`, `/removerole`
+- Persistent numbered cases with moderator, reason, evidence, timestamps; all changes audited
+- Basic automod toggle (invite links + mass pings) via `/config automod`
+
+### Also included
+- Welcome/goodbye channels, autorole, button verification (`/config`, `/verification setup`)
+- Giveaways with entries, winners, reroll (`/giveaway start|end|reroll|list`)
+- `/ping /help /serverinfo /userinfo`, owner tools (`/owner status|servers|reload`)
+- Health endpoint on `PORT` (`/health`) so hosting platforms can verify readiness
+
+## Quick start
 
 ```bash
-npm install
-npm run check
-npm run register
-npm start
+bun install        # or npm install
+npm run check      # syntax-check every source file
+npm run smoke      # run the 25-check smoke suite (DB, parser, validators, builders)
+npm run register   # register slash commands with Discord (needs token)
+npm start          # start the bot + health server
 ```
 
-Enable Server Members and Message Content intents. Keep `.env` and the SQLite database private. `DATABASE_PATH` defaults to `./data/nightmare.sqlite`.
+Required environment: `DISCORD_TOKEN`, `CLIENT_ID`, `OWNER_ID`. Optional: `DATABASE_PATH` (default `./data/nightmare.sqlite`), `PORT` (default 3000).
 
-## Security
-The token is never stored in source. Rotate any token exposed in chat or source control. Discord permission gates and role hierarchy checks protect moderation operations; the bot cannot manage roles above its highest role. Grant only required OAuth2 permissions.
+Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
+
+## Typical server setup
+
+1. `/config welcome #welcome`, `/config logs #mod-log`, `/config autorole @Member`
+2. `/ticketpanel create title:"Support"` in your ticket hub channel
+3. `/ticketcategory add key:support label:"General Support" staff_role_1:@Staff`
+4. `/ticketfield add category_key:support label:"Describe your issue" style:paragraph required:true`
+5. Sellers run `/payout save` once; buyers vouch with `+rep @seller deal went great, fast delivery`
+
+## Data & privacy
+- SQLite (WAL mode) at `data/nightmare.sqlite`; transcripts in `data/transcripts/`
+- Payout rows are per-user and only ever rendered in ephemeral messages
+- `/transcripts/<file>.html` traversal is blocked (basename-only resolution)
 
 ## Structure
-`src/index.js` bootstraps the client; `src/commands/index.js` contains slash command definitions; `src/events/index.js` handles commands, buttons, and event seams; `src/database/index.js` owns SQLite schema/helpers; `src/utils/` contains embeds and logging.
+- `src/index.js` — bootstrap, intents, health server
+- `src/commands/index.js` — moderation, vouch, payout, ticket, config, core commands
+- `src/commands/legacy.js` — giveaways, verification panel, owner tools
+- `src/events/index.js` — interaction router (buttons/selects/modals), `+rep` parser, auto-close worker
+- `src/database/index.js` — schema + all queries (vouches, tickets, payouts, cases, audit)
+- `src/utils/` — `tickets.js` (engine), `validate.js` (LTC/UPI), `vouch.js`, `embed.js`, `health.js`, `logger.js`
+- `scripts/smoke.mjs` — test suite (`npm run smoke`)
