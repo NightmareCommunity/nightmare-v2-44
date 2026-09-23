@@ -1,13 +1,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { logger } from '../utils/logger.js';
 
 const file = process.env.DATABASE_PATH || './data/nightmare.sqlite';
 fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
-const db = new Database(file);
-db.pragma('journal_mode = WAL');
+const db = new DatabaseSync(file);
+db.exec('PRAGMA journal_mode = WAL;');
 const json = value => JSON.stringify(value ?? {});
+
+// node:sqlite has no db.transaction(fn) wrapper (better-sqlite3 API) — emulate it.
+function withTransaction(fn) {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw error;
+  }
+}
 
 export const database = {
   db,
@@ -51,12 +64,12 @@ export const database = {
   // Vouches
   addVouch(guildId, targetId, authorId, description, dealValue, proofUrl) {
     const key = monthKey();
-    const insert = db.transaction(() => {
+    const insert = withTransaction(() => {
       const id = db.prepare('INSERT INTO vouches(guild_id,target_id,author_id,description,deal_value,proof_url,created_at) VALUES(?,?,?,?,?,?,?)').run(guildId, targetId, authorId, description || null, dealValue || null, proofUrl || null, Date.now()).lastInsertRowid;
       db.prepare('INSERT INTO vouch_counters(user_id,total,month,month_key) VALUES(?,1,1,?) ON CONFLICT(user_id) DO UPDATE SET total=total+1, month=CASE WHEN month_key=? THEN month+1 ELSE 1 END, month_key=?').run(targetId, key, key, key);
       return id;
     });
-    return insert();
+    return insert;
   },
   vouchesFor(guildId, userId, limit = 25) { return db.prepare("SELECT * FROM vouches WHERE guild_id=? AND target_id=? AND status='active' ORDER BY id DESC LIMIT ?").all(guildId,userId,limit); },
   vouchesBy(guildId, authorId, limit = 25) { return db.prepare("SELECT * FROM vouches WHERE guild_id=? AND author_id=? AND status='active' ORDER BY id DESC LIMIT ?").all(guildId,authorId,limit); },
@@ -70,7 +83,7 @@ export const database = {
   payoutsFor(userId) { return db.prepare('SELECT * FROM payouts WHERE user_id=? ORDER BY is_default DESC, id DESC').all(userId); },
   defaultPayout(userId) { return db.prepare('SELECT * FROM payouts WHERE user_id=? AND is_default=1').get(userId) || db.prepare('SELECT * FROM payouts WHERE user_id=? ORDER BY is_default DESC, id DESC').get(userId); },
   removePayout(userId, id) { return db.prepare('DELETE FROM payouts WHERE id=? AND user_id=?').run(id, userId).changes; },
-  setDefaultPayout(userId, id) { const t = db.transaction(() => { db.prepare('UPDATE payouts SET is_default=0 WHERE user_id=?').run(userId); db.prepare('UPDATE payouts SET is_default=1 WHERE user_id=? AND id=?').run(userId,id); }); t(); return true; },
+  setDefaultPayout(userId, id) { withTransaction(() => { db.prepare('UPDATE payouts SET is_default=0 WHERE user_id=?').run(userId); db.prepare('UPDATE payouts SET is_default=1 WHERE user_id=? AND id=?').run(userId,id); }); return true; },
   markPayoutConfirmed(userId, id) { db.prepare('UPDATE payouts SET confirmed=1, confirm_token=NULL, confirm_expires_at=NULL WHERE id=? AND user_id=?').run(id,userId); },
   // Ticket panels & categories (extended helpers)
   addPanel(guildId, channelId, messageId, title, description) { return db.prepare('INSERT INTO ticket_panels(guild_id,channel_id,message_id,title,description,created_at) VALUES(?,?,?,?,?,?)').run(guildId,channelId,messageId,title,description||null,Date.now()).lastInsertRowid; },

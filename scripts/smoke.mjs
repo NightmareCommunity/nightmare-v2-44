@@ -1,7 +1,7 @@
 // Smoke test: import all modules, exercise pure functions. Run with: node scripts/smoke.mjs
 process.env.DATABASE_PATH = './data/smoke-test.sqlite';
-try { fs.unlinkSync('./data/smoke-test.sqlite'); } catch {}
 import fs from 'node:fs';
+for (const f of ['data/smoke-test.sqlite', 'data/smoke-test.sqlite-wal', 'data/smoke-test.sqlite-shm']) { try { fs.unlinkSync(f); } catch {} }
 
 const checks = [];
 const check = (name, fn) => { try { const result = fn(); checks.push([name, result === false ? 'FAIL' : 'PASS']); } catch (e) { checks.push([name, `ERROR: ${e.message}`]); } };

@@ -76,7 +76,15 @@ npm start          # start the bot + health server
 
 Required environment: `DISCORD_TOKEN`, `CLIENT_ID`, `OWNER_ID`. Optional: `DATABASE_PATH` (default `./data/nightmare.sqlite`), `PORT` (default 3000).
 
-Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
+**Requires Node.js >= 22.5** (uses the built-in `node:sqlite` driver — no native modules, no node-gyp, no allow-scripts issues on hosts). Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
+
+## Deploying to HeavenCloud (free)
+
+1. Create a free Node.js server at control.heavencloud.in.
+2. Upload the repo zip (without `node_modules`) and unarchive to the container root.
+3. Create a `.env` file in the root with `DISCORD_TOKEN`, `CLIENT_ID`, `OWNER_ID`.
+4. **Startup tab → MAIN_FILE / Bot JS file must be exactly `src/index.js`** — if it is empty or not a `.js` path the host falls back to `ts-node` and crashes with `MODULE_NOT_FOUND`.
+5. Start — the host auto-runs `npm install`; there are no native build steps to approve.
 
 ## Typical server setup
 
