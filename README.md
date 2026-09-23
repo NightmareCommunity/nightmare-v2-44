@@ -48,6 +48,22 @@ Production Discord bot (discord.js v14 + SQLite) focused on four things: **selle
 - `/ping /help /serverinfo /userinfo`, owner tools (`/owner status|servers|reload`)
 - Health endpoint on `PORT` (`/health`) so hosting platforms can verify readiness
 
+## Deploying to bot-hosting.net
+
+No credit card needed — the host bills a free coin system.
+
+1. **Claim coins:** log in at [bot-hosting.net](https://bot-hosting.net/login) with Discord → **Earn Coins** → claim the free coins (10/day via the free generator; a free-tier server costs a small weekly amount of coins).
+2. **Create the server:** **Create Server** → name it, language **Node.js** → pick the cheapest plan that fits (this bot is light — the smallest works; bump RAM/CPU later if needed) → weekly billing.
+3. **Upload the code:** panel → **Files** → **Upload** a zip of the repo (Code → Download ZIP on GitHub; exclude `node_modules` — the host auto-installs from `package.json`). Unarchive, then move contents up one level (`..`).
+4. **Startup tab:**
+   - **Bot JS file:** `src/index.js`
+   - **Additional Node.js packages:** leave empty (auto-installed from `package.json`)
+   - **Variables:** add `DISCORD_TOKEN`, `CLIENT_ID`, `OWNER_ID` with your values (Pterodactyl user variables — put them here, not in a `.env` file)
+5. **Start.** First boot auto-installs dependencies and auto-registers slash commands (built into `Events.ClientReady`), so no manual `npm run register` is needed.
+6. Health check: open the panel's **Network** tab, note the primary allocation port, and hit `http://<server-ip>:<port>/health` — should return `"discord": true`.
+
+Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal → Bot → Privileged Intents, or the process will crash-loop at login.
+
 ## Quick start
 
 ```bash

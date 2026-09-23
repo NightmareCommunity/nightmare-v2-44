@@ -1,4 +1,4 @@
-import { Events, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { Events, ChannelType, PermissionFlagsBits, REST, Routes } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { fail, embed, ok } from '../utils/embed.js';
 import { database, finishGiveaway, db } from '../database/index.js';
@@ -7,8 +7,20 @@ import { parseVouch } from '../utils/vouch.js';
 import { panelSelectRow, buildFieldModal, fieldsForCategory, openTicketChannel, isStaffForTicket, ticketControlsRow, prioritySelect, closeTicket, reopenTicket } from '../utils/tickets.js';
 
 export function registerEvents(client) {
-  client.once(Events.ClientReady, c => {
+  client.once(Events.ClientReady, async c => {
     logger.info(`Logged in as ${c.user.tag}`);
+    // Auto-register slash commands on boot (idempotent PUT) so hosts that can only
+    // run the main file (Pterodactyl panels like bot-hosting.net) stay up to date.
+    try {
+      if (process.env.CLIENT_ID && process.env.DISCORD_TOKEN) {
+        const { commands } = await import('../commands/index.js');
+        await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN.trim())
+          .put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands.map(cmd => cmd.data.toJSON()) });
+        logger.info(`Auto-registered ${commands.length} global slash commands.`);
+      }
+    } catch (error) {
+      logger.error('Auto-registration of slash commands failed (bot is still running)', error);
+    }
     const tick = async () => {
       for (const row of database.activeGiveaways()) await finishGiveaway(client, row).catch(e => logger.error('Giveaway expiry failed', e));
       await autoCloseTick(client).catch(e => logger.error('Ticket auto-close failed', e));
