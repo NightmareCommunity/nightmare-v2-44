@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import { logger } from '../utils/logger.js';
 
 const file = process.env.DATABASE_PATH || './data/nightmare.sqlite';
 fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
@@ -11,6 +12,7 @@ const json = value => JSON.stringify(value ?? {});
 export const database = {
   db,
   init() {
+    try {
     db.exec(`CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '{}');
       CREATE TABLE IF NOT EXISTS moderation_cases (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, moderator_id TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, evidence TEXT, created_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS tickets (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, panel_id INTEGER, category_id TEXT, channel_id TEXT UNIQUE NOT NULL, creator_id TEXT NOT NULL, claimed_by TEXT, priority TEXT NOT NULL DEFAULT 'low', status TEXT NOT NULL DEFAULT 'open', close_reason TEXT, transcript TEXT, created_at INTEGER NOT NULL, claimed_at INTEGER, closed_at INTEGER, last_activity_at INTEGER, last_warned_at INTEGER);
@@ -21,7 +23,13 @@ export const database = {
       CREATE TABLE IF NOT EXISTS vouches (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, target_id TEXT NOT NULL, author_id TEXT NOT NULL, description TEXT, deal_value TEXT, proof_url TEXT, status TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL, edited_at INTEGER);
       CREATE TABLE IF NOT EXISTS vouch_counters (user_id TEXT PRIMARY KEY, total INTEGER NOT NULL DEFAULT 0, month INTEGER NOT NULL DEFAULT 0, month_key TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS payout_confirmations (id INTEGER PRIMARY KEY AUTOINCREMENT, payout_id INTEGER NOT NULL REFERENCES payouts(id) ON DELETE CASCADE, user_id TEXT NOT NULL, token TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS giveaways (message_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, prize TEXT NOT NULL, ends_at INTEGER NOT NULL, winners INTEGER NOT NULL DEFAULT 1, ended INTEGER NOT NULL DEFAULT 0, entries TEXT NOT NULL DEFAULT '[]');
       CREATE TABLE IF NOT EXISTS moderation_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, action TEXT NOT NULL, data TEXT, created_at INTEGER NOT NULL);`);
+    } catch (error) {
+      // Never let schema drift crash-loop the bot on a fresh host — keep core tables, log the gap.
+      try { db.exec("CREATE TABLE IF NOT EXISTS giveaways (message_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, prize TEXT NOT NULL, ends_at INTEGER NOT NULL, winners INTEGER NOT NULL DEFAULT 1, ended INTEGER NOT NULL DEFAULT 0, entries TEXT NOT NULL DEFAULT '[]')"); } catch {}
+      logger.error('Schema init partially failed — bot continuing with available tables', error);
+    }
   },
   getSettings(guildId) { const row = db.prepare('SELECT data FROM guild_settings WHERE guild_id=?').get(guildId); return row ? JSON.parse(row.data) : {}; },
   saveSettings(guildId, data) { db.prepare('INSERT INTO guild_settings(guild_id,data) VALUES(?,?) ON CONFLICT(guild_id) DO UPDATE SET data=excluded.data').run(guildId, json(data)); },
